@@ -20,6 +20,10 @@
     <string name="pref_units_title" translatable="false">Units</string>
     <string name="pref_units_key" translatable="false">units</string>
 
+    <!-- TODO: fix this from FetchWeatherTask -->
+    <string name="pref_units_metric" translatable="false">metric</string>
+    <string name="pref_units_imperial" translatable="false">imperial</string>
+
     <string-array name="units_array">
         <item>Metric</item>
         <item>Imperial</item>
