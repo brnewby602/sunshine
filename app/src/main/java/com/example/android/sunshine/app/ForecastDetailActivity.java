@@ -17,8 +17,12 @@ package com.example.android.sunshine.app;
  */
 
 import android.content.Intent;
+import android.database.Cursor;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.content.CursorLoader;
+import android.support.v4.content.Loader;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.ActionBarActivity;
 import android.support.v7.widget.ShareActionProvider;
@@ -31,6 +35,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import com.example.android.sunshine.app.data.WeatherContract.WeatherEntry;
 //import android.widget.ShareActionProvider;
 
 
@@ -74,12 +79,32 @@ public class ForecastDetailActivity extends ActionBarActivity {
     /**
      * A placeholder fragment containing a simple view.
      */
-    public static class PlaceholderFragment extends Fragment {
+    public static class PlaceholderFragment extends Fragment implements LoaderManager.LoaderCallbacks<Cursor> {
 
         private static final String LOG_TAG = PlaceholderFragment.class.getSimpleName();
 
         private static final String FORECAST_SHARE_HASHTAG = " #SunshineApp";
+        private ShareActionProvider m_ShareActionProvider;
         private String m_ForecastString;
+
+
+        private static final int DETAIL_LOADER = 0;
+
+        private static final String[] FORECAST_COLUMNS = {
+                WeatherEntry.TABLE_NAME + "." + WeatherEntry._ID,
+                WeatherEntry.COLUMN_DATE,
+                WeatherEntry.COLUMN_SHORT_DESC,
+                WeatherEntry.COLUMN_MAX_TEMP,
+                WeatherEntry.COLUMN_MIN_TEMP,
+        };
+
+        // these constants correspond to the projection defined above, and must change if the
+        // projection changes
+        private static final int COL_WEATHER_ID = 0;
+        private static final int COL_WEATHER_DATE = 1;
+        private static final int COL_WEATHER_DESC = 2;
+        private static final int COL_WEATHER_MAX_TEMP = 3;
+        private static final int COL_WEATHER_MIN_TEMP = 4;
 
         public PlaceholderFragment() {
             setHasOptionsMenu(true);
@@ -92,7 +117,11 @@ public class ForecastDetailActivity extends ActionBarActivity {
             View rootView = inflater.inflate(R.layout.fragment_forecast_detail, container, false);
 
             Intent detailForecastIntent = getActivity().getIntent();
-            m_ForecastString = detailForecastIntent.getStringExtra(Intent.EXTRA_TEXT);
+
+            if (detailForecastIntent != null) {
+                m_ForecastString = detailForecastIntent.getDataString();
+            }
+
 
             TextView textView = (TextView) rootView.findViewById(R.id.forecast_detail_textview);
             textView.setText(m_ForecastString);
@@ -106,14 +135,11 @@ public class ForecastDetailActivity extends ActionBarActivity {
 
             MenuItem item = menu.findItem(R.id.action_share);
 
-            ShareActionProvider shareActionProvider = (ShareActionProvider) MenuItemCompat.getActionProvider(item);
+            m_ShareActionProvider = (ShareActionProvider) MenuItemCompat.getActionProvider(item);
 
-            if(shareActionProvider != null) {
-                shareActionProvider.setShareIntent(createShareForecastIntent());
-
-            }
-            else {
-                Log.e(LOG_TAG, "ShareActionProvider is null!");
+            // If onLoadFinished happens before this, we can go ahead and set the share intent now.
+            if (m_ForecastString != null) {
+                m_ShareActionProvider.setShareIntent(createShareForecastIntent());
             }
 
         }
@@ -128,6 +154,71 @@ public class ForecastDetailActivity extends ActionBarActivity {
             return shareIntent;
 
         }
+
+        @Override
+        public void onActivityCreated(Bundle savedInstanceState) {
+            getLoaderManager().initLoader(DETAIL_LOADER, null, this);
+            super.onActivityCreated(savedInstanceState);
+        }
+
+        @Override
+        public Loader<Cursor> onCreateLoader(int i, Bundle bundle) {
+
+            Log.v(LOG_TAG, "In onCreateLoader");
+
+            Intent intent = getActivity().getIntent();
+            if (intent == null) {
+                return null;
+            }
+
+            // Now create and return a CursorLoader that will take care of
+            // creating a Cursor for the data being displayed.
+            return new CursorLoader(
+                    getActivity(),
+                    intent.getData(),
+                    FORECAST_COLUMNS,
+                    null,
+                    null,
+                    null
+            );
+        }
+
+        @Override
+        public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+
+            Log.v(LOG_TAG, "In onLoadFinished");
+
+            if (!data.moveToFirst()) { return; }
+
+            String dateString = Utility.formatDate(
+                    data.getLong(COL_WEATHER_DATE));
+
+            String weatherDescription =
+                    data.getString(COL_WEATHER_DESC);
+
+            boolean isMetric = Utility.isMetric(getActivity());
+
+            String high = Utility.formatTemperature( getActivity(),
+                    data.getDouble(COL_WEATHER_MAX_TEMP), isMetric);
+
+            String low = Utility.formatTemperature( getActivity(),
+                    data.getDouble(COL_WEATHER_MIN_TEMP), isMetric);
+
+            m_ForecastString = String.format("%s - %s - %s/%s", dateString, weatherDescription, high, low);
+
+            TextView detailTextView = (TextView)getView().findViewById(R.id.forecast_detail_textview);
+            detailTextView.setText(m_ForecastString);
+
+            // If onCreateOptionsMenu has already happened, we need to update the share intent now.
+            if (m_ShareActionProvider != null) {
+                m_ShareActionProvider.setShareIntent(createShareForecastIntent());
+            }
+        }
+
+        @Override
+        public void onLoaderReset(Loader<Cursor> loader) {
+        }
+
 
     }
 }
